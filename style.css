@@ -1,0 +1,174 @@
+:root {
+  color-scheme: light;
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f5f7fb;
+  color: #1f2430;
+}
+
+.container {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 24px 16px 40px;
+  display: grid;
+  gap: 20px;
+}
+
+header h1 {
+  margin-bottom: 8px;
+}
+
+header p {
+  margin: 0;
+  color: #4a5568;
+}
+
+.sync-status {
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+section {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 8px 20px rgba(39, 57, 85, 0.08);
+}
+
+.import-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.hint {
+  color: #4a5568;
+  margin-top: 0;
+}
+
+label {
+  font-weight: 600;
+}
+
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+select,
+textarea {
+  width: 100%;
+  border: 1px solid #d6dbe7;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+textarea {
+  min-height: 160px;
+  resize: vertical;
+}
+
+button {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: transform 0.1s ease, opacity 0.2s ease;
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+.actions-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.primary {
+  background: #2563eb;
+  color: #fff;
+}
+
+.danger {
+  background: #e53e3e;
+  color: #fff;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tab {
+  background: #edf2f7;
+  color: #334155;
+}
+
+.tab.active {
+  background: #2563eb;
+  color: #fff;
+}
+
+.list-toolbar {
+  margin-top: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+#listSummary {
+  margin: 0;
+  color: #4a5568;
+}
+
+.card-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.card-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-text {
+  overflow-wrap: anywhere;
+}
+
+.copy-btn {
+  background: #0ea5e9;
+  color: #fff;
+  min-width: 72px;
+}
+
+.copy-btn.copied {
+  background: #16a34a;
+}
+
+.empty {
+  color: #64748b;
+  padding: 10px 0;
+}
