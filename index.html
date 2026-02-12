@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>闲鱼卡密管理</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header>
+        <h1>闲鱼发货卡密管理</h1>
+        <p>支持批量导入，自动提取卡密，一键复制并清除已复制项。</p>
+        <p id="syncStatus" class="sync-status">云端状态：正在初始化...</p>
+      </header>
+
+      <section class="import-panel">
+        <h2>批量导入</h2>
+        <p class="hint">粘贴内容后会自动识别并拆分为一行一个卡密。</p>
+        <label for="cardType">卡密类型</label>
+        <select id="cardType">
+          <option value="warranty">质保卡密</option>
+          <option value="noWarranty">无质保卡密</option>
+        </select>
+
+        <label for="bulkInput">批量内容</label>
+        <textarea
+          id="bulkInput"
+          placeholder="支持多行文本，或混合空格、逗号、分号的内容"
+        ></textarea>
+
+        <div class="actions-row">
+          <button id="importBtn" class="primary">导入卡密</button>
+          <button id="manualSyncBtn">手动同步云端</button>
+        </div>
+      </section>
+
+      <section class="list-panel">
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-type="warranty">质保卡密</button>
+          <button class="tab" data-type="noWarranty">无质保卡密</button>
+        </div>
+
+        <div class="list-toolbar">
+          <p id="listSummary">当前共有 0 条，已复制 0 条</p>
+          <button id="clearCopiedBtn" class="danger">删除已复制卡密</button>
+        </div>
+
+        <ul id="cardList" class="card-list"></ul>
+      </section>
+    </main>
+
+    <template id="cardItemTemplate">
+      <li class="card-item">
+        <code class="card-text"></code>
+        <button class="copy-btn">复制</button>
+      </li>
+    </template>
+
+    <script src="script.js"></script>
+  </body>
+</html>
