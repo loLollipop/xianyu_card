@@ -1,4 +1,9 @@
 const STORE_KEY = "shared-cards";
+const DEFAULT_TEMPLATE = "自助上车链接：https://invite.jerrylove.de5.net\n卡密：{{card}}";
+const DEFAULT_TYPES = [
+  { id: "warranty", name: "质保卡密", allowDuplicate: false, duplicateCount: 1 },
+  { id: "noWarranty", name: "无质保卡密", allowDuplicate: false, duplicateCount: 1 },
+];
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -10,20 +15,73 @@ function json(data, status = 200) {
   });
 }
 
-function sanitizeCards(input) {
-  const output = { warranty: [], noWarranty: [] };
+function normalizeDuplicateCount(value) {
+  const count = Number.parseInt(value, 10);
+  if (!Number.isFinite(count) || count < 1) return 1;
+  return Math.min(count, 200);
+}
 
-  ["warranty", "noWarranty"].forEach((type) => {
-    const list = Array.isArray(input?.[type]) ? input[type] : [];
-    const values = new Set();
+function sanitizePayload(input) {
+  const inputCardTypes = Array.isArray(input?.cardTypes) ? input.cardTypes : DEFAULT_TYPES;
+  const cardTypes = [];
+  const usedIds = new Set();
 
-    list.forEach((item) => {
-      if (!item || typeof item.value !== "string") return;
-      const value = item.value.trim();
-      if (!value || values.has(value)) return;
-      values.add(value);
-      output[type].push({ value, copied: Boolean(item.copied) });
+  inputCardTypes.forEach((type, index) => {
+    if (!type || typeof type.name !== "string") return;
+    const name = type.name.trim();
+    if (!name) return;
+
+    let id = typeof type.id === "string" ? type.id.trim() : "";
+    if (!id || usedIds.has(id)) {
+      id = `${DEFAULT_TYPES[index]?.id || "type"}-${index + 1}`;
+    }
+
+    const allowDuplicate = Boolean(type.allowDuplicate);
+    const duplicateCount = allowDuplicate ? normalizeDuplicateCount(type.duplicateCount) : 1;
+
+    usedIds.add(id);
+    cardTypes.push({
+      id,
+      name,
+      allowDuplicate,
+      duplicateCount,
     });
+  });
+
+  if (!cardTypes.length) {
+    DEFAULT_TYPES.forEach((type) => cardTypes.push({ ...type }));
+  }
+
+  const sourceCards = input?.cards && typeof input.cards === "object" ? input.cards : input;
+  const cards = {};
+
+  cardTypes.forEach((type) => {
+    const list = Array.isArray(sourceCards?.[type.id]) ? sourceCards[type.id] : [];
+    cards[type.id] = sanitizeCardList(list, type.allowDuplicate);
+  });
+
+  const sourceTemplates = input?.templates && typeof input.templates === "object" ? input.templates : {};
+  const templates = {};
+
+  cardTypes.forEach((type) => {
+    const value = sourceTemplates[type.id];
+    templates[type.id] = typeof value === "string" && value.trim() ? value.trim() : DEFAULT_TEMPLATE;
+  });
+
+  return { cardTypes, cards, templates };
+}
+
+function sanitizeCardList(list, allowDuplicate) {
+  const output = [];
+  const values = new Set();
+
+  list.forEach((item) => {
+    if (!item || typeof item.value !== "string") return;
+    const value = item.value.trim();
+    if (!value) return;
+    if (!allowDuplicate && values.has(value)) return;
+    values.add(value);
+    output.push({ value, copied: Boolean(item.copied) });
   });
 
   return output;
@@ -35,17 +93,32 @@ export async function onRequestGet(context) {
 
   const raw = await kv.get(STORE_KEY);
   if (!raw) {
-    return json({ cards: { warranty: [], noWarranty: [] }, updatedAt: null });
+    const empty = sanitizePayload({});
+    return json({
+      cardTypes: empty.cardTypes,
+      cards: empty.cards,
+      templates: empty.templates,
+      updatedAt: null,
+    });
   }
 
   try {
     const parsed = JSON.parse(raw);
+    const sanitized = sanitizePayload(parsed);
     return json({
-      cards: sanitizeCards(parsed.cards),
+      cardTypes: sanitized.cardTypes,
+      cards: sanitized.cards,
+      templates: sanitized.templates,
       updatedAt: parsed.updatedAt || null,
     });
   } catch {
-    return json({ cards: { warranty: [], noWarranty: [] }, updatedAt: null });
+    const empty = sanitizePayload({});
+    return json({
+      cardTypes: empty.cardTypes,
+      cards: empty.cards,
+      templates: empty.templates,
+      updatedAt: null,
+    });
   }
 }
 
@@ -60,9 +133,11 @@ export async function onRequestPut(context) {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  const cards = sanitizeCards(body.cards);
+  const sanitized = sanitizePayload(body);
   const payload = {
-    cards,
+    cardTypes: sanitized.cardTypes,
+    cards: sanitized.cards,
+    templates: sanitized.templates,
     updatedAt: new Date().toISOString(),
   };
 

@@ -84,7 +84,8 @@ body {
   box-shadow: 0 8px 20px rgba(39, 57, 85, 0.08);
 }
 
-.import-panel {
+.import-panel,
+.template-panel {
   display: grid;
   gap: 10px;
 }
@@ -99,17 +100,24 @@ label {
 }
 
 select,
+input,
 textarea,
 button {
   font: inherit;
 }
 
 select,
+input,
 textarea {
   width: 100%;
   border: 1px solid #d6dbe7;
   border-radius: 10px;
   padding: 10px 12px;
+}
+
+input[type="checkbox"] {
+  width: auto;
+  padding: 0;
 }
 
 textarea {
@@ -137,6 +145,61 @@ button:hover {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.type-creator {
+  margin-top: 4px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.type-creator h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.type-creator-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.checkbox-label {
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+
+.type-editor {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.type-editor h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.inline-field {
+  display: grid;
+  grid-template-columns: auto 120px;
+  align-items: center;
+  gap: 8px;
+}
+
+.inline-field label {
+  margin: 0;
 }
 
 .primary {
@@ -152,6 +215,7 @@ button:hover {
 .tabs {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .tab {
@@ -175,6 +239,12 @@ button:hover {
 #listSummary {
   margin: 0;
   color: #4a5568;
+}
+
+.template-status {
+  margin: 0;
+  color: #475569;
+  font-size: 14px;
 }
 
 .card-list {
@@ -230,5 +300,10 @@ button:hover {
 
   .content {
     padding: 16px;
+  }
+
+  .list-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
