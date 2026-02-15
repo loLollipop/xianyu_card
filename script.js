@@ -7,6 +7,7 @@ const COPY_MESSAGE_TEMPLATE = [
 
 const state = {
   activeType: "warranty",
+  activeView: "import",
   cards: {
     warranty: [],
     noWarranty: [],
@@ -27,12 +28,15 @@ const tabs = [...document.querySelectorAll(".tab")];
 const cardItemTemplate = document.querySelector("#cardItemTemplate");
 const syncStatus = document.querySelector("#syncStatus");
 const manualSyncBtn = document.querySelector("#manualSyncBtn");
+const navBtns = [...document.querySelectorAll(".nav-btn")];
+const viewPanels = [...document.querySelectorAll(".view-panel")];
 
 initialize();
 
 async function initialize() {
   loadLocalState();
   bindEvents();
+  updateView();
   render();
   await syncFromCloud();
 }
@@ -41,6 +45,13 @@ function bindEvents() {
   importBtn.addEventListener("click", importCards);
   clearCopiedBtn.addEventListener("click", clearCopiedCards);
   manualSyncBtn.addEventListener("click", syncFromCloud);
+
+  navBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.activeView = btn.dataset.view;
+      updateView();
+    });
+  });
 
   tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -71,7 +82,9 @@ function importCards() {
   persistAndSync();
 
   state.activeType = type;
+  state.activeView = "extract";
   updateTabs();
+  updateView();
   render();
 }
 
@@ -172,6 +185,16 @@ function renderSyncStatus(message) {
 
   const time = new Date(state.sync.lastSyncAt).toLocaleString();
   syncStatus.textContent = `云端状态：已同步（${time}）`;
+}
+
+function updateView() {
+  navBtns.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.view === state.activeView);
+  });
+
+  viewPanels.forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.view === state.activeView);
+  });
 }
 
 function updateTabs() {

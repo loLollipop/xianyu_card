@@ -7,46 +7,57 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <main class="container">
-      <header>
-        <h1>闲鱼发货卡密管理</h1>
-        <p>支持批量导入，自动提取卡密，一键复制并清除已复制项。</p>
+    <main class="app-shell">
+      <aside class="sidebar">
+        <h1>闲鱼卡密管理</h1>
+        <p class="sidebar-desc">导入和提取分屏操作，避免误点。</p>
+        <nav class="sidebar-nav" aria-label="主导航">
+          <button class="nav-btn active" data-view="import">导入卡密</button>
+          <button class="nav-btn" data-view="extract">提取卡密</button>
+        </nav>
         <p id="syncStatus" class="sync-status">云端状态：正在初始化...</p>
-      </header>
+      </aside>
 
-      <section class="import-panel">
-        <h2>批量导入</h2>
-        <p class="hint">粘贴内容后会自动识别并拆分为一行一个卡密。</p>
-        <label for="cardType">卡密类型</label>
-        <select id="cardType">
-          <option value="warranty">质保卡密</option>
-          <option value="noWarranty">无质保卡密</option>
-        </select>
+      <section class="content">
+        <section class="view-panel active" data-view="import">
+          <div class="panel-card import-panel">
+            <h2>批量导入</h2>
+            <p class="hint">粘贴内容后会自动识别并拆分为一行一个卡密。</p>
+            <label for="cardType">卡密类型</label>
+            <select id="cardType">
+              <option value="warranty">质保卡密</option>
+              <option value="noWarranty">无质保卡密</option>
+            </select>
 
-        <label for="bulkInput">批量内容</label>
-        <textarea
-          id="bulkInput"
-          placeholder="支持多行文本，或混合空格、逗号、分号的内容"
-        ></textarea>
+            <label for="bulkInput">批量内容</label>
+            <textarea
+              id="bulkInput"
+              placeholder="支持多行文本，或混合空格、逗号、分号的内容"
+            ></textarea>
 
-        <div class="actions-row">
-          <button id="importBtn" class="primary">导入卡密</button>
-          <button id="manualSyncBtn">手动同步云端</button>
-        </div>
-      </section>
+            <div class="actions-row">
+              <button id="importBtn" class="primary">导入卡密</button>
+              <button id="manualSyncBtn">手动同步云端</button>
+            </div>
+          </div>
+        </section>
 
-      <section class="list-panel">
-        <div class="tabs" role="tablist">
-          <button class="tab active" data-type="warranty">质保卡密</button>
-          <button class="tab" data-type="noWarranty">无质保卡密</button>
-        </div>
+        <section class="view-panel" data-view="extract">
+          <div class="panel-card list-panel">
+            <h2>提取并复制卡密</h2>
+            <div class="tabs" role="tablist">
+              <button class="tab active" data-type="warranty">质保卡密</button>
+              <button class="tab" data-type="noWarranty">无质保卡密</button>
+            </div>
 
-        <div class="list-toolbar">
-          <p id="listSummary">当前共有 0 条，已复制 0 条</p>
-          <button id="clearCopiedBtn" class="danger">删除已复制卡密</button>
-        </div>
+            <div class="list-toolbar">
+              <p id="listSummary">当前共有 0 条，已复制 0 条</p>
+              <button id="clearCopiedBtn" class="danger">删除已复制卡密</button>
+            </div>
 
-        <ul id="cardList" class="card-list"></ul>
+            <ul id="cardList" class="card-list"></ul>
+          </div>
+        </section>
       </section>
     </main>
 
