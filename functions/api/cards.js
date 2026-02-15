@@ -1,4 +1,8 @@
 const STORE_KEY = "shared-cards";
+const DEFAULT_TYPES = [
+  { id: "warranty", name: "质保卡密", allowDuplicate: false },
+  { id: "noWarranty", name: "无质保卡密", allowDuplicate: false },
+];
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -10,20 +14,55 @@ function json(data, status = 200) {
   });
 }
 
-function sanitizeCards(input) {
-  const output = { warranty: [], noWarranty: [] };
+function sanitizePayload(input) {
+  const inputCardTypes = Array.isArray(input?.cardTypes) ? input.cardTypes : DEFAULT_TYPES;
+  const cardTypes = [];
+  const usedIds = new Set();
 
-  ["warranty", "noWarranty"].forEach((type) => {
-    const list = Array.isArray(input?.[type]) ? input[type] : [];
-    const values = new Set();
+  inputCardTypes.forEach((type, index) => {
+    if (!type || typeof type.name !== "string") return;
+    const name = type.name.trim();
+    if (!name) return;
 
-    list.forEach((item) => {
-      if (!item || typeof item.value !== "string") return;
-      const value = item.value.trim();
-      if (!value || values.has(value)) return;
-      values.add(value);
-      output[type].push({ value, copied: Boolean(item.copied) });
+    let id = typeof type.id === "string" ? type.id.trim() : "";
+    if (!id || usedIds.has(id)) {
+      id = `${DEFAULT_TYPES[index]?.id || "type"}-${index + 1}`;
+    }
+
+    usedIds.add(id);
+    cardTypes.push({
+      id,
+      name,
+      allowDuplicate: Boolean(type.allowDuplicate),
     });
+  });
+
+  if (!cardTypes.length) {
+    DEFAULT_TYPES.forEach((type) => cardTypes.push({ ...type }));
+  }
+
+  const sourceCards = input?.cards && typeof input.cards === "object" ? input.cards : input;
+  const cards = {};
+
+  cardTypes.forEach((type) => {
+    const list = Array.isArray(sourceCards?.[type.id]) ? sourceCards[type.id] : [];
+    cards[type.id] = sanitizeCardList(list, type.allowDuplicate);
+  });
+
+  return { cardTypes, cards };
+}
+
+function sanitizeCardList(list, allowDuplicate) {
+  const output = [];
+  const values = new Set();
+
+  list.forEach((item) => {
+    if (!item || typeof item.value !== "string") return;
+    const value = item.value.trim();
+    if (!value) return;
+    if (!allowDuplicate && values.has(value)) return;
+    values.add(value);
+    output.push({ value, copied: Boolean(item.copied) });
   });
 
   return output;
@@ -35,17 +74,21 @@ export async function onRequestGet(context) {
 
   const raw = await kv.get(STORE_KEY);
   if (!raw) {
-    return json({ cards: { warranty: [], noWarranty: [] }, updatedAt: null });
+    const empty = sanitizePayload({});
+    return json({ cardTypes: empty.cardTypes, cards: empty.cards, updatedAt: null });
   }
 
   try {
     const parsed = JSON.parse(raw);
+    const sanitized = sanitizePayload(parsed);
     return json({
-      cards: sanitizeCards(parsed.cards),
+      cardTypes: sanitized.cardTypes,
+      cards: sanitized.cards,
       updatedAt: parsed.updatedAt || null,
     });
   } catch {
-    return json({ cards: { warranty: [], noWarranty: [] }, updatedAt: null });
+    const empty = sanitizePayload({});
+    return json({ cardTypes: empty.cardTypes, cards: empty.cards, updatedAt: null });
   }
 }
 
@@ -60,9 +103,10 @@ export async function onRequestPut(context) {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  const cards = sanitizeCards(body.cards);
+  const sanitized = sanitizePayload(body);
   const payload = {
-    cards,
+    cardTypes: sanitized.cardTypes,
+    cards: sanitized.cards,
     updatedAt: new Date().toISOString(),
   };
 

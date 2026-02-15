@@ -1,17 +1,20 @@
-const STORAGE_KEY = "xianyu-card-storage-v2";
+const STORAGE_KEY = "xianyu-card-storage-v3";
+const LEGACY_STORAGE_KEY = "xianyu-card-storage-v2";
 const CLOUD_API = "/api/cards";
 const COPY_MESSAGE_TEMPLATE = [
   "自助上车链接：https://invite.jerrylove.de5.net",
   "卡密：",
 ];
+const DEFAULT_TYPES = [
+  { id: "warranty", name: "质保卡密", allowDuplicate: false },
+  { id: "noWarranty", name: "无质保卡密", allowDuplicate: false },
+];
 
 const state = {
-  activeType: "warranty",
+  activeType: DEFAULT_TYPES[0].id,
   activeView: "import",
-  cards: {
-    warranty: [],
-    noWarranty: [],
-  },
+  cardTypes: [...DEFAULT_TYPES],
+  cards: {},
   sync: {
     pending: false,
     lastSyncAt: null,
@@ -24,18 +27,22 @@ const importBtn = document.querySelector("#importBtn");
 const cardList = document.querySelector("#cardList");
 const listSummary = document.querySelector("#listSummary");
 const clearCopiedBtn = document.querySelector("#clearCopiedBtn");
-const tabs = [...document.querySelectorAll(".tab")];
+const typeTabs = document.querySelector("#typeTabs");
 const cardItemTemplate = document.querySelector("#cardItemTemplate");
 const syncStatus = document.querySelector("#syncStatus");
 const manualSyncBtn = document.querySelector("#manualSyncBtn");
 const navBtns = [...document.querySelectorAll(".nav-btn")];
 const viewPanels = [...document.querySelectorAll(".view-panel")];
+const newTypeNameInput = document.querySelector("#newTypeName");
+const allowDuplicateTypeInput = document.querySelector("#allowDuplicateType");
+const addTypeBtn = document.querySelector("#addTypeBtn");
 
 initialize();
 
 async function initialize() {
   loadLocalState();
   bindEvents();
+  ensureActiveType();
   updateView();
   render();
   await syncFromCloud();
@@ -45,6 +52,7 @@ function bindEvents() {
   importBtn.addEventListener("click", importCards);
   clearCopiedBtn.addEventListener("click", clearCopiedCards);
   manualSyncBtn.addEventListener("click", syncFromCloud);
+  addTypeBtn.addEventListener("click", addCardType);
 
   navBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -52,44 +60,86 @@ function bindEvents() {
       updateView();
     });
   });
+}
 
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      state.activeType = tab.dataset.type;
-      updateTabs();
-      render();
-    });
-  });
+function addCardType() {
+  const name = newTypeNameInput.value.trim();
+  if (!name) return;
+
+  const id = createTypeId(name);
+  const allowDuplicate = allowDuplicateTypeInput.checked;
+
+  state.cardTypes.push({ id, name, allowDuplicate });
+  state.cards[id] = [];
+  state.activeType = id;
+
+  newTypeNameInput.value = "";
+  allowDuplicateTypeInput.checked = false;
+
+  persistAndSync();
+  renderTypeControls();
+  render();
+}
+
+function createTypeId(name) {
+  const normalized = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 24);
+
+  const base = normalized || "type";
+  let candidate = base;
+  let index = 1;
+  const existing = new Set(state.cardTypes.map((type) => type.id));
+
+  while (existing.has(candidate)) {
+    candidate = `${base}-${index}`;
+    index += 1;
+  }
+
+  return candidate;
 }
 
 function importCards() {
   const type = cardTypeSelect.value;
   const raw = bulkInput.value.trim();
-  if (!raw) return;
+  if (!raw || !state.cards[type]) return;
 
   const extracted = extractCards(raw);
   if (!extracted.length) return;
 
-  const existingSet = new Set(state.cards[type].map((item) => item.value));
-  extracted.forEach((value) => {
-    if (!existingSet.has(value)) {
+  const typeMeta = getTypeMeta(type);
+  if (typeMeta.allowDuplicate) {
+    extracted.forEach((value) => {
       state.cards[type].push({ value, copied: false });
-      existingSet.add(value);
-    }
-  });
+    });
+  } else {
+    const existingSet = new Set(state.cards[type].map((item) => item.value));
+    extracted.forEach((value) => {
+      if (!existingSet.has(value)) {
+        state.cards[type].push({ value, copied: false });
+        existingSet.add(value);
+      }
+    });
+  }
 
   bulkInput.value = "";
   persistAndSync();
 
   state.activeType = type;
   state.activeView = "extract";
-  updateTabs();
   updateView();
   render();
 }
 
 function extractCards(raw) {
-  return [...new Set(raw.split(/[\n,;，；\s]+/).map((s) => s.trim()).filter(Boolean))];
+  return raw.split(/[\n,;，；\s]+/).map((s) => s.trim()).filter(Boolean);
+}
+
+function getTypeMeta(typeId) {
+  return state.cardTypes.find((type) => type.id === typeId) || DEFAULT_TYPES[0];
 }
 
 async function copyCard(text, btn, index) {
@@ -106,7 +156,7 @@ async function copyCard(text, btn, index) {
     fallback.remove();
   }
 
-  const list = state.cards[state.activeType];
+  const list = state.cards[state.activeType] || [];
   if (list[index]) {
     list[index].copied = true;
   }
@@ -120,20 +170,59 @@ async function copyCard(text, btn, index) {
 }
 
 function clearCopiedCards() {
-  const list = state.cards[state.activeType];
+  const list = state.cards[state.activeType] || [];
   state.cards[state.activeType] = list.filter((item) => !item.copied);
   persistAndSync();
   render();
 }
 
 function render() {
+  renderTypeControls();
   renderList();
   renderSummary();
   renderSyncStatus();
 }
 
+function renderTypeControls() {
+  renderTypeSelect();
+  renderTypeTabs();
+}
+
+function renderTypeSelect() {
+  cardTypeSelect.innerHTML = "";
+
+  state.cardTypes.forEach((type) => {
+    const option = document.createElement("option");
+    option.value = type.id;
+    option.textContent = `${type.name}${type.allowDuplicate ? "（允许重复）" : ""}`;
+    cardTypeSelect.appendChild(option);
+  });
+
+  cardTypeSelect.value = state.activeType;
+}
+
+function renderTypeTabs() {
+  typeTabs.innerHTML = "";
+
+  state.cardTypes.forEach((type) => {
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "tab";
+    tab.dataset.type = type.id;
+    tab.textContent = type.name;
+    tab.classList.toggle("active", type.id === state.activeType);
+
+    tab.addEventListener("click", () => {
+      state.activeType = type.id;
+      render();
+    });
+
+    typeTabs.appendChild(tab);
+  });
+}
+
 function renderList() {
-  const list = state.cards[state.activeType];
+  const list = state.cards[state.activeType] || [];
   cardList.innerHTML = "";
 
   if (!list.length) {
@@ -162,7 +251,7 @@ function renderList() {
 }
 
 function renderSummary() {
-  const list = state.cards[state.activeType];
+  const list = state.cards[state.activeType] || [];
   const copied = list.filter((item) => item.copied).length;
   listSummary.textContent = `当前共有 ${list.length} 条，已复制 ${copied} 条`;
 }
@@ -197,47 +286,99 @@ function updateView() {
   });
 }
 
-function updateTabs() {
-  tabs.forEach((tab) => {
-    tab.classList.toggle("active", tab.dataset.type === state.activeType);
-  });
-}
-
 function saveLocalState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.cards));
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      cardTypes: state.cardTypes,
+      cards: state.cards,
+    }),
+  );
 }
 
 function loadLocalState() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw);
-    state.cards = sanitizeCards(parsed);
+    const sanitized = sanitizePayload(parsed);
+    state.cardTypes = sanitized.cardTypes;
+    state.cards = sanitized.cards;
   } catch {
     localStorage.removeItem(STORAGE_KEY);
   }
 }
 
-function sanitizeCards(input) {
-  const output = { warranty: [], noWarranty: [] };
+function sanitizePayload(input) {
+  const inputCardTypes = Array.isArray(input?.cardTypes) ? input.cardTypes : DEFAULT_TYPES;
 
-  ["warranty", "noWarranty"].forEach((type) => {
-    const list = Array.isArray(input?.[type]) ? input[type] : [];
-    const values = new Set();
+  const cardTypes = [];
+  const usedIds = new Set();
 
-    list.forEach((item) => {
-      if (!item || typeof item.value !== "string") return;
-      const value = item.value.trim();
-      if (!value || values.has(value)) return;
-      values.add(value);
-      output[type].push({ value, copied: Boolean(item.copied) });
+  inputCardTypes.forEach((type, index) => {
+    if (!type || typeof type.name !== "string") return;
+    const name = type.name.trim();
+    if (!name) return;
+
+    let id = typeof type.id === "string" ? type.id.trim() : "";
+    if (!id || usedIds.has(id)) {
+      id = `${DEFAULT_TYPES[index]?.id || "type"}-${index + 1}`;
+    }
+
+    usedIds.add(id);
+    cardTypes.push({
+      id,
+      name,
+      allowDuplicate: Boolean(type.allowDuplicate),
     });
+  });
+
+  if (!cardTypes.length) {
+    DEFAULT_TYPES.forEach((type) => {
+      cardTypes.push({ ...type });
+      usedIds.add(type.id);
+    });
+  }
+
+  const sourceCards = input?.cards && typeof input.cards === "object" ? input.cards : input;
+  const cards = {};
+
+  cardTypes.forEach((type) => {
+    const list = Array.isArray(sourceCards?.[type.id]) ? sourceCards[type.id] : [];
+    cards[type.id] = sanitizeCardList(list, type.allowDuplicate);
+  });
+
+  return { cardTypes, cards };
+}
+
+function sanitizeCardList(list, allowDuplicate) {
+  const output = [];
+  const values = new Set();
+
+  list.forEach((item) => {
+    if (!item || typeof item.value !== "string") return;
+    const value = item.value.trim();
+    if (!value) return;
+    if (!allowDuplicate && values.has(value)) return;
+    values.add(value);
+    output.push({ value, copied: Boolean(item.copied) });
   });
 
   return output;
 }
 
+function ensureActiveType() {
+  if (!state.cardTypes.some((type) => type.id === state.activeType)) {
+    state.activeType = state.cardTypes[0]?.id || DEFAULT_TYPES[0].id;
+  }
+
+  if (!state.cards[state.activeType]) {
+    state.cards[state.activeType] = [];
+  }
+}
+
 function persistAndSync() {
+  ensureActiveType();
   saveLocalState();
   syncToCloud();
 }
@@ -251,7 +392,10 @@ async function syncFromCloud() {
     if (!response.ok) throw new Error("load_failed");
 
     const data = await response.json();
-    state.cards = sanitizeCards(data.cards);
+    const sanitized = sanitizePayload(data);
+    state.cardTypes = sanitized.cardTypes;
+    state.cards = sanitized.cards;
+    ensureActiveType();
     state.sync.lastSyncAt = data.updatedAt || new Date().toISOString();
     saveLocalState();
     render();
@@ -271,7 +415,10 @@ async function syncToCloud() {
     const response = await fetch(CLOUD_API, {
       method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ cards: state.cards }),
+      body: JSON.stringify({
+        cardTypes: state.cardTypes,
+        cards: state.cards,
+      }),
     });
 
     if (!response.ok) throw new Error("save_failed");

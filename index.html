@@ -24,10 +24,19 @@
             <h2>批量导入</h2>
             <p class="hint">粘贴内容后会自动识别并拆分为一行一个卡密。</p>
             <label for="cardType">卡密类型</label>
-            <select id="cardType">
-              <option value="warranty">质保卡密</option>
-              <option value="noWarranty">无质保卡密</option>
-            </select>
+            <select id="cardType"></select>
+
+            <div class="type-creator">
+              <h3>新增卡密类型</h3>
+              <div class="type-creator-row">
+                <input id="newTypeName" type="text" placeholder="例如：月卡卡密" maxlength="30" />
+                <button id="addTypeBtn" type="button">添加类型</button>
+              </div>
+              <label class="checkbox-label" for="allowDuplicateType">
+                <input id="allowDuplicateType" type="checkbox" />
+                允许该类型卡密重复
+              </label>
+            </div>
 
             <label for="bulkInput">批量内容</label>
             <textarea
@@ -45,10 +54,7 @@
         <section class="view-panel" data-view="extract">
           <div class="panel-card list-panel">
             <h2>提取并复制卡密</h2>
-            <div class="tabs" role="tablist">
-              <button class="tab active" data-type="warranty">质保卡密</button>
-              <button class="tab" data-type="noWarranty">无质保卡密</button>
-            </div>
+            <div id="typeTabs" class="tabs" role="tablist"></div>
 
             <div class="list-toolbar">
               <p id="listSummary">当前共有 0 条，已复制 0 条</p>
