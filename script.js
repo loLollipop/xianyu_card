@@ -1,8 +1,13 @@
 const STORAGE_KEY = "xianyu-card-storage-v2";
 const CLOUD_API = "/api/cards";
+const COPY_MESSAGE_TEMPLATE = [
+  "自助上车链接：https://invite.jerrylove.de5.net",
+  "卡密：",
+];
 
 const state = {
   activeType: "warranty",
+  activeView: "import",
   cards: {
     warranty: [],
     noWarranty: [],
@@ -23,12 +28,15 @@ const tabs = [...document.querySelectorAll(".tab")];
 const cardItemTemplate = document.querySelector("#cardItemTemplate");
 const syncStatus = document.querySelector("#syncStatus");
 const manualSyncBtn = document.querySelector("#manualSyncBtn");
+const navBtns = [...document.querySelectorAll(".nav-btn")];
+const viewPanels = [...document.querySelectorAll(".view-panel")];
 
 initialize();
 
 async function initialize() {
   loadLocalState();
   bindEvents();
+  updateView();
   render();
   await syncFromCloud();
 }
@@ -37,6 +45,13 @@ function bindEvents() {
   importBtn.addEventListener("click", importCards);
   clearCopiedBtn.addEventListener("click", clearCopiedCards);
   manualSyncBtn.addEventListener("click", syncFromCloud);
+
+  navBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.activeView = btn.dataset.view;
+      updateView();
+    });
+  });
 
   tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -67,7 +82,9 @@ function importCards() {
   persistAndSync();
 
   state.activeType = type;
+  state.activeView = "extract";
   updateTabs();
+  updateView();
   render();
 }
 
@@ -76,11 +93,13 @@ function extractCards(raw) {
 }
 
 async function copyCard(text, btn, index) {
+  const copyText = `${COPY_MESSAGE_TEMPLATE.join("\n")}${text}`;
+
   try {
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(copyText);
   } catch {
     const fallback = document.createElement("textarea");
-    fallback.value = text;
+    fallback.value = copyText;
     document.body.appendChild(fallback);
     fallback.select();
     document.execCommand("copy");
@@ -166,6 +185,16 @@ function renderSyncStatus(message) {
 
   const time = new Date(state.sync.lastSyncAt).toLocaleString();
   syncStatus.textContent = `云端状态：已同步（${time}）`;
+}
+
+function updateView() {
+  navBtns.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.view === state.activeView);
+  });
+
+  viewPanels.forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.view === state.activeView);
+  });
 }
 
 function updateTabs() {
