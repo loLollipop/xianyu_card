@@ -1,5 +1,9 @@
 const STORAGE_KEY = "xianyu-card-storage-v2";
 const CLOUD_API = "/api/cards";
+const COPY_MESSAGE_TEMPLATE = [
+  "自助上车链接：https://invite.jerrylove.de5.net",
+  "卡密：",
+];
 
 const state = {
   activeType: "warranty",
@@ -76,11 +80,13 @@ function extractCards(raw) {
 }
 
 async function copyCard(text, btn, index) {
+  const copyText = `${COPY_MESSAGE_TEMPLATE.join("\n")}${text}`;
+
   try {
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(copyText);
   } catch {
     const fallback = document.createElement("textarea");
-    fallback.value = text;
+    fallback.value = copyText;
     document.body.appendChild(fallback);
     fallback.select();
     document.execCommand("copy");
