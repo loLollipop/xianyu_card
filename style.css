@@ -84,7 +84,8 @@ body {
   box-shadow: 0 8px 20px rgba(39, 57, 85, 0.08);
 }
 
-.import-panel {
+.import-panel,
+.template-panel {
   display: grid;
   gap: 10px;
 }
@@ -144,6 +145,7 @@ button:hover {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .type-creator {
@@ -187,6 +189,7 @@ button:hover {
 .tabs {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .tab {
@@ -210,6 +213,12 @@ button:hover {
 #listSummary {
   margin: 0;
   color: #4a5568;
+}
+
+.template-status {
+  margin: 0;
+  color: #475569;
+  font-size: 14px;
 }
 
 .card-list {
@@ -265,5 +274,10 @@ button:hover {
 
   .content {
     padding: 16px;
+  }
+
+  .list-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

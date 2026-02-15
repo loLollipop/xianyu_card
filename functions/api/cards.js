@@ -1,4 +1,5 @@
 const STORE_KEY = "shared-cards";
+const DEFAULT_TEMPLATE = "自助上车链接：https://invite.jerrylove.de5.net\n卡密：{{card}}";
 const DEFAULT_TYPES = [
   { id: "warranty", name: "质保卡密", allowDuplicate: false },
   { id: "noWarranty", name: "无质保卡密", allowDuplicate: false },
@@ -49,7 +50,15 @@ function sanitizePayload(input) {
     cards[type.id] = sanitizeCardList(list, type.allowDuplicate);
   });
 
-  return { cardTypes, cards };
+  const sourceTemplates = input?.templates && typeof input.templates === "object" ? input.templates : {};
+  const templates = {};
+
+  cardTypes.forEach((type) => {
+    const value = sourceTemplates[type.id];
+    templates[type.id] = typeof value === "string" && value.trim() ? value.trim() : DEFAULT_TEMPLATE;
+  });
+
+  return { cardTypes, cards, templates };
 }
 
 function sanitizeCardList(list, allowDuplicate) {
@@ -75,7 +84,12 @@ export async function onRequestGet(context) {
   const raw = await kv.get(STORE_KEY);
   if (!raw) {
     const empty = sanitizePayload({});
-    return json({ cardTypes: empty.cardTypes, cards: empty.cards, updatedAt: null });
+    return json({
+      cardTypes: empty.cardTypes,
+      cards: empty.cards,
+      templates: empty.templates,
+      updatedAt: null,
+    });
   }
 
   try {
@@ -84,11 +98,17 @@ export async function onRequestGet(context) {
     return json({
       cardTypes: sanitized.cardTypes,
       cards: sanitized.cards,
+      templates: sanitized.templates,
       updatedAt: parsed.updatedAt || null,
     });
   } catch {
     const empty = sanitizePayload({});
-    return json({ cardTypes: empty.cardTypes, cards: empty.cards, updatedAt: null });
+    return json({
+      cardTypes: empty.cardTypes,
+      cards: empty.cards,
+      templates: empty.templates,
+      updatedAt: null,
+    });
   }
 }
 
@@ -107,6 +127,7 @@ export async function onRequestPut(context) {
   const payload = {
     cardTypes: sanitized.cardTypes,
     cards: sanitized.cards,
+    templates: sanitized.templates,
     updatedAt: new Date().toISOString(),
   };
 

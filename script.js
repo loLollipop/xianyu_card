@@ -1,10 +1,7 @@
-const STORAGE_KEY = "xianyu-card-storage-v3";
-const LEGACY_STORAGE_KEY = "xianyu-card-storage-v2";
+const STORAGE_KEY = "xianyu-card-storage-v4";
+const LEGACY_STORAGE_KEYS = ["xianyu-card-storage-v3", "xianyu-card-storage-v2"];
 const CLOUD_API = "/api/cards";
-const COPY_MESSAGE_TEMPLATE = [
-  "自助上车链接：https://invite.jerrylove.de5.net",
-  "卡密：",
-];
+const DEFAULT_TEMPLATE = "自助上车链接：https://invite.jerrylove.de5.net\n卡密：{{card}}";
 const DEFAULT_TYPES = [
   { id: "warranty", name: "质保卡密", allowDuplicate: false },
   { id: "noWarranty", name: "无质保卡密", allowDuplicate: false },
@@ -15,6 +12,7 @@ const state = {
   activeView: "import",
   cardTypes: [...DEFAULT_TYPES],
   cards: {},
+  templates: {},
   sync: {
     pending: false,
     lastSyncAt: null,
@@ -36,13 +34,17 @@ const viewPanels = [...document.querySelectorAll(".view-panel")];
 const newTypeNameInput = document.querySelector("#newTypeName");
 const allowDuplicateTypeInput = document.querySelector("#allowDuplicateType");
 const addTypeBtn = document.querySelector("#addTypeBtn");
+const templateTypeSelect = document.querySelector("#templateType");
+const templateInput = document.querySelector("#templateInput");
+const saveTemplateBtn = document.querySelector("#saveTemplateBtn");
+const templateStatus = document.querySelector("#templateStatus");
 
 initialize();
 
 async function initialize() {
   loadLocalState();
   bindEvents();
-  ensureActiveType();
+  ensureStateConsistency();
   updateView();
   render();
   await syncFromCloud();
@@ -53,13 +55,19 @@ function bindEvents() {
   clearCopiedBtn.addEventListener("click", clearCopiedCards);
   manualSyncBtn.addEventListener("click", syncFromCloud);
   addTypeBtn.addEventListener("click", addCardType);
+  saveTemplateBtn.addEventListener("click", saveTemplate);
 
   navBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
       state.activeView = btn.dataset.view;
       updateView();
+      if (state.activeView === "template") {
+        renderTemplateEditor();
+      }
     });
   });
+
+  templateTypeSelect.addEventListener("change", renderTemplateEditor);
 }
 
 function addCardType() {
@@ -71,13 +79,13 @@ function addCardType() {
 
   state.cardTypes.push({ id, name, allowDuplicate });
   state.cards[id] = [];
+  state.templates[id] = DEFAULT_TEMPLATE;
   state.activeType = id;
 
   newTypeNameInput.value = "";
   allowDuplicateTypeInput.checked = false;
 
   persistAndSync();
-  renderTypeControls();
   render();
 }
 
@@ -142,8 +150,30 @@ function getTypeMeta(typeId) {
   return state.cardTypes.find((type) => type.id === typeId) || DEFAULT_TYPES[0];
 }
 
+function getTemplateForType(typeId) {
+  const value = state.templates[typeId];
+  return typeof value === "string" && value.trim() ? value : DEFAULT_TEMPLATE;
+}
+
+function buildCopyText(typeId, cardValue) {
+  const template = getTemplateForType(typeId);
+  if (template.includes("{{card}}")) {
+    return template.replaceAll("{{card}}", cardValue);
+  }
+  return `${template}\n${cardValue}`;
+}
+
+function saveTemplate() {
+  const typeId = templateTypeSelect.value;
+  if (!typeId) return;
+
+  state.templates[typeId] = templateInput.value.trim() || DEFAULT_TEMPLATE;
+  templateStatus.textContent = "模板已保存";
+  persistAndSync();
+}
+
 async function copyCard(text, btn, index) {
-  const copyText = `${COPY_MESSAGE_TEMPLATE.join("\n")}${text}`;
+  const copyText = buildCopyText(state.activeType, text);
 
   try {
     await navigator.clipboard.writeText(copyText);
@@ -178,6 +208,8 @@ function clearCopiedCards() {
 
 function render() {
   renderTypeControls();
+  renderTemplateTypeSelect();
+  renderTemplateEditor();
   renderList();
   renderSummary();
   renderSyncStatus();
@@ -219,6 +251,30 @@ function renderTypeTabs() {
 
     typeTabs.appendChild(tab);
   });
+}
+
+function renderTemplateTypeSelect() {
+  const currentType = templateTypeSelect.value;
+  templateTypeSelect.innerHTML = "";
+
+  state.cardTypes.forEach((type) => {
+    const option = document.createElement("option");
+    option.value = type.id;
+    option.textContent = type.name;
+    templateTypeSelect.appendChild(option);
+  });
+
+  if (state.cardTypes.some((type) => type.id === currentType)) {
+    templateTypeSelect.value = currentType;
+  } else {
+    templateTypeSelect.value = state.activeType;
+  }
+}
+
+function renderTemplateEditor() {
+  const typeId = templateTypeSelect.value || state.activeType;
+  templateInput.value = getTemplateForType(typeId);
+  templateStatus.textContent = "未保存";
 }
 
 function renderList() {
@@ -292,21 +348,36 @@ function saveLocalState() {
     JSON.stringify({
       cardTypes: state.cardTypes,
       cards: state.cards,
+      templates: state.templates,
     }),
   );
 }
 
 function loadLocalState() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
+    const raw = getLocalStorageRaw();
     if (!raw) return;
+
     const parsed = JSON.parse(raw);
     const sanitized = sanitizePayload(parsed);
     state.cardTypes = sanitized.cardTypes;
     state.cards = sanitized.cards;
+    state.templates = sanitized.templates;
   } catch {
     localStorage.removeItem(STORAGE_KEY);
   }
+}
+
+function getLocalStorageRaw() {
+  const current = localStorage.getItem(STORAGE_KEY);
+  if (current) return current;
+
+  for (const key of LEGACY_STORAGE_KEYS) {
+    const value = localStorage.getItem(key);
+    if (value) return value;
+  }
+
+  return null;
 }
 
 function sanitizePayload(input) {
@@ -348,7 +419,14 @@ function sanitizePayload(input) {
     cards[type.id] = sanitizeCardList(list, type.allowDuplicate);
   });
 
-  return { cardTypes, cards };
+  const sourceTemplates = input?.templates && typeof input.templates === "object" ? input.templates : {};
+  const templates = {};
+  cardTypes.forEach((type) => {
+    const value = sourceTemplates[type.id];
+    templates[type.id] = typeof value === "string" && value.trim() ? value.trim() : DEFAULT_TEMPLATE;
+  });
+
+  return { cardTypes, cards, templates };
 }
 
 function sanitizeCardList(list, allowDuplicate) {
@@ -367,18 +445,24 @@ function sanitizeCardList(list, allowDuplicate) {
   return output;
 }
 
-function ensureActiveType() {
+function ensureStateConsistency() {
   if (!state.cardTypes.some((type) => type.id === state.activeType)) {
     state.activeType = state.cardTypes[0]?.id || DEFAULT_TYPES[0].id;
   }
 
-  if (!state.cards[state.activeType]) {
-    state.cards[state.activeType] = [];
-  }
+  state.cardTypes.forEach((type) => {
+    if (!Array.isArray(state.cards[type.id])) {
+      state.cards[type.id] = [];
+    }
+
+    if (typeof state.templates[type.id] !== "string" || !state.templates[type.id].trim()) {
+      state.templates[type.id] = DEFAULT_TEMPLATE;
+    }
+  });
 }
 
 function persistAndSync() {
-  ensureActiveType();
+  ensureStateConsistency();
   saveLocalState();
   syncToCloud();
 }
@@ -395,7 +479,8 @@ async function syncFromCloud() {
     const sanitized = sanitizePayload(data);
     state.cardTypes = sanitized.cardTypes;
     state.cards = sanitized.cards;
-    ensureActiveType();
+    state.templates = sanitized.templates;
+    ensureStateConsistency();
     state.sync.lastSyncAt = data.updatedAt || new Date().toISOString();
     saveLocalState();
     render();
@@ -418,6 +503,7 @@ async function syncToCloud() {
       body: JSON.stringify({
         cardTypes: state.cardTypes,
         cards: state.cards,
+        templates: state.templates,
       }),
     });
 
