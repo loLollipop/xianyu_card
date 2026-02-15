@@ -14,6 +14,7 @@
         <nav class="sidebar-nav" aria-label="主导航">
           <button class="nav-btn active" data-view="import">导入卡密</button>
           <button class="nav-btn" data-view="extract">提取卡密</button>
+          <button class="nav-btn" data-view="template">复制模板设置</button>
         </nav>
         <p id="syncStatus" class="sync-status">云端状态：正在初始化...</p>
       </aside>
@@ -24,10 +25,19 @@
             <h2>批量导入</h2>
             <p class="hint">粘贴内容后会自动识别并拆分为一行一个卡密。</p>
             <label for="cardType">卡密类型</label>
-            <select id="cardType">
-              <option value="warranty">质保卡密</option>
-              <option value="noWarranty">无质保卡密</option>
-            </select>
+            <select id="cardType"></select>
+
+            <div class="type-creator">
+              <h3>新增卡密类型</h3>
+              <div class="type-creator-row">
+                <input id="newTypeName" type="text" placeholder="例如：月卡卡密" maxlength="30" />
+                <button id="addTypeBtn" type="button">添加类型</button>
+              </div>
+              <label class="checkbox-label" for="allowDuplicateType">
+                <input id="allowDuplicateType" type="checkbox" />
+                允许该类型卡密重复
+              </label>
+            </div>
 
             <label for="bulkInput">批量内容</label>
             <textarea
@@ -45,10 +55,7 @@
         <section class="view-panel" data-view="extract">
           <div class="panel-card list-panel">
             <h2>提取并复制卡密</h2>
-            <div class="tabs" role="tablist">
-              <button class="tab active" data-type="warranty">质保卡密</button>
-              <button class="tab" data-type="noWarranty">无质保卡密</button>
-            </div>
+            <div id="typeTabs" class="tabs" role="tablist"></div>
 
             <div class="list-toolbar">
               <p id="listSummary">当前共有 0 条，已复制 0 条</p>
@@ -56,6 +63,27 @@
             </div>
 
             <ul id="cardList" class="card-list"></ul>
+          </div>
+        </section>
+
+        <section class="view-panel" data-view="template">
+          <div class="panel-card template-panel">
+            <h2>复制模板设置</h2>
+            <p class="hint">支持变量 <code>{{card}}</code>，复制时将自动替换为当前卡密。</p>
+
+            <label for="templateType">卡密类型</label>
+            <select id="templateType"></select>
+
+            <label for="templateInput">复制模板</label>
+            <textarea
+              id="templateInput"
+              placeholder="例如：自助上车链接：https://xxx\n卡密：{{card}}"
+            ></textarea>
+
+            <div class="actions-row">
+              <button id="saveTemplateBtn" class="primary" type="button">保存模板</button>
+              <p id="templateStatus" class="template-status">未保存</p>
+            </div>
           </div>
         </section>
       </section>
