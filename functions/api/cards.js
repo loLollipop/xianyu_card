@@ -1,8 +1,8 @@
 const STORE_KEY = "shared-cards";
 const DEFAULT_TEMPLATE = "自助上车链接：https://invite.jerrylove.de5.net\n卡密：{{card}}";
 const DEFAULT_TYPES = [
-  { id: "warranty", name: "质保卡密", allowDuplicate: false },
-  { id: "noWarranty", name: "无质保卡密", allowDuplicate: false },
+  { id: "warranty", name: "质保卡密", allowDuplicate: false, duplicateCount: 1 },
+  { id: "noWarranty", name: "无质保卡密", allowDuplicate: false, duplicateCount: 1 },
 ];
 
 function json(data, status = 200) {
@@ -13,6 +13,12 @@ function json(data, status = 200) {
       "cache-control": "no-store",
     },
   });
+}
+
+function normalizeDuplicateCount(value) {
+  const count = Number.parseInt(value, 10);
+  if (!Number.isFinite(count) || count < 1) return 1;
+  return Math.min(count, 200);
 }
 
 function sanitizePayload(input) {
@@ -30,11 +36,15 @@ function sanitizePayload(input) {
       id = `${DEFAULT_TYPES[index]?.id || "type"}-${index + 1}`;
     }
 
+    const allowDuplicate = Boolean(type.allowDuplicate);
+    const duplicateCount = allowDuplicate ? normalizeDuplicateCount(type.duplicateCount) : 1;
+
     usedIds.add(id);
     cardTypes.push({
       id,
       name,
-      allowDuplicate: Boolean(type.allowDuplicate),
+      allowDuplicate,
+      duplicateCount,
     });
   });
 

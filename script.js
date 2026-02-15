@@ -1,10 +1,10 @@
-const STORAGE_KEY = "xianyu-card-storage-v4";
-const LEGACY_STORAGE_KEYS = ["xianyu-card-storage-v3", "xianyu-card-storage-v2"];
+const STORAGE_KEY = "xianyu-card-storage-v5";
+const LEGACY_STORAGE_KEYS = ["xianyu-card-storage-v4", "xianyu-card-storage-v3", "xianyu-card-storage-v2"];
 const CLOUD_API = "/api/cards";
 const DEFAULT_TEMPLATE = "自助上车链接：https://invite.jerrylove.de5.net\n卡密：{{card}}";
 const DEFAULT_TYPES = [
-  { id: "warranty", name: "质保卡密", allowDuplicate: false },
-  { id: "noWarranty", name: "无质保卡密", allowDuplicate: false },
+  { id: "warranty", name: "质保卡密", allowDuplicate: false, duplicateCount: 1 },
+  { id: "noWarranty", name: "无质保卡密", allowDuplicate: false, duplicateCount: 1 },
 ];
 
 const state = {
@@ -33,7 +33,13 @@ const navBtns = [...document.querySelectorAll(".nav-btn")];
 const viewPanels = [...document.querySelectorAll(".view-panel")];
 const newTypeNameInput = document.querySelector("#newTypeName");
 const allowDuplicateTypeInput = document.querySelector("#allowDuplicateType");
+const newTypeDuplicateCountInput = document.querySelector("#newTypeDuplicateCount");
 const addTypeBtn = document.querySelector("#addTypeBtn");
+const manageTypeSelect = document.querySelector("#manageTypeSelect");
+const manageAllowDuplicateInput = document.querySelector("#manageAllowDuplicate");
+const manageDuplicateCountInput = document.querySelector("#manageDuplicateCount");
+const saveTypeSettingsBtn = document.querySelector("#saveTypeSettingsBtn");
+const deleteTypeBtn = document.querySelector("#deleteTypeBtn");
 const templateTypeSelect = document.querySelector("#templateType");
 const templateInput = document.querySelector("#templateInput");
 const saveTemplateBtn = document.querySelector("#saveTemplateBtn");
@@ -56,6 +62,16 @@ function bindEvents() {
   manualSyncBtn.addEventListener("click", syncFromCloud);
   addTypeBtn.addEventListener("click", addCardType);
   saveTemplateBtn.addEventListener("click", saveTemplate);
+  saveTypeSettingsBtn.addEventListener("click", saveTypeSettings);
+  deleteTypeBtn.addEventListener("click", deleteType);
+
+  allowDuplicateTypeInput.addEventListener("change", () => {
+    newTypeDuplicateCountInput.disabled = !allowDuplicateTypeInput.checked;
+  });
+
+  manageAllowDuplicateInput.addEventListener("change", () => {
+    manageDuplicateCountInput.disabled = !manageAllowDuplicateInput.checked;
+  });
 
   navBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -68,6 +84,7 @@ function bindEvents() {
   });
 
   templateTypeSelect.addEventListener("change", renderTemplateEditor);
+  manageTypeSelect.addEventListener("change", renderTypeEditor);
 }
 
 function addCardType() {
@@ -76,14 +93,61 @@ function addCardType() {
 
   const id = createTypeId(name);
   const allowDuplicate = allowDuplicateTypeInput.checked;
+  const duplicateCount = allowDuplicate ? normalizeDuplicateCount(newTypeDuplicateCountInput.value) : 1;
 
-  state.cardTypes.push({ id, name, allowDuplicate });
+  state.cardTypes.push({ id, name, allowDuplicate, duplicateCount });
   state.cards[id] = [];
   state.templates[id] = DEFAULT_TEMPLATE;
   state.activeType = id;
 
   newTypeNameInput.value = "";
   allowDuplicateTypeInput.checked = false;
+  newTypeDuplicateCountInput.value = "1";
+  newTypeDuplicateCountInput.disabled = true;
+
+  persistAndSync();
+  render();
+}
+
+function saveTypeSettings() {
+  const typeId = manageTypeSelect.value;
+  const typeMeta = getTypeMeta(typeId);
+  if (!typeMeta) return;
+
+  typeMeta.allowDuplicate = manageAllowDuplicateInput.checked;
+  typeMeta.duplicateCount = typeMeta.allowDuplicate
+    ? normalizeDuplicateCount(manageDuplicateCountInput.value)
+    : 1;
+
+  if (!typeMeta.allowDuplicate) {
+    state.cards[typeId] = sanitizeCardList(state.cards[typeId] || [], false);
+  }
+
+  persistAndSync();
+  render();
+}
+
+function deleteType() {
+  const typeId = manageTypeSelect.value;
+  if (!typeId) return;
+  if (state.cardTypes.length <= 1) {
+    alert("至少保留一个卡密类型。");
+    return;
+  }
+
+  const typeMeta = getTypeMeta(typeId);
+  if (!typeMeta) return;
+
+  const confirmed = confirm(`确定删除类型「${typeMeta.name}」及其全部卡密吗？`);
+  if (!confirmed) return;
+
+  state.cardTypes = state.cardTypes.filter((type) => type.id !== typeId);
+  delete state.cards[typeId];
+  delete state.templates[typeId];
+
+  if (state.activeType === typeId) {
+    state.activeType = state.cardTypes[0].id;
+  }
 
   persistAndSync();
   render();
@@ -110,24 +174,32 @@ function createTypeId(name) {
   return candidate;
 }
 
+function normalizeDuplicateCount(value) {
+  const count = Number.parseInt(value, 10);
+  if (!Number.isFinite(count) || count < 1) return 1;
+  return Math.min(count, 200);
+}
+
 function importCards() {
-  const type = cardTypeSelect.value;
-  const raw = bulkInput.value.trim();
-  if (!raw || !state.cards[type]) return;
+  const typeId = cardTypeSelect.value;
+  const typeMeta = getTypeMeta(typeId);
+  const raw = bulkInput.value;
+  if (!typeMeta || !raw.trim() || !state.cards[typeId]) return;
 
-  const extracted = extractCards(raw);
-  if (!extracted.length) return;
-
-  const typeMeta = getTypeMeta(type);
   if (typeMeta.allowDuplicate) {
-    extracted.forEach((value) => {
-      state.cards[type].push({ value, copied: false });
-    });
+    const cardValue = raw.trim();
+    const repeat = normalizeDuplicateCount(typeMeta.duplicateCount);
+    for (let i = 0; i < repeat; i += 1) {
+      state.cards[typeId].push({ value: cardValue, copied: false });
+    }
   } else {
-    const existingSet = new Set(state.cards[type].map((item) => item.value));
+    const extracted = extractCards(raw);
+    if (!extracted.length) return;
+
+    const existingSet = new Set(state.cards[typeId].map((item) => item.value));
     extracted.forEach((value) => {
       if (!existingSet.has(value)) {
-        state.cards[type].push({ value, copied: false });
+        state.cards[typeId].push({ value, copied: false });
         existingSet.add(value);
       }
     });
@@ -136,7 +208,7 @@ function importCards() {
   bulkInput.value = "";
   persistAndSync();
 
-  state.activeType = type;
+  state.activeType = typeId;
   state.activeView = "extract";
   updateView();
   render();
@@ -147,7 +219,7 @@ function extractCards(raw) {
 }
 
 function getTypeMeta(typeId) {
-  return state.cardTypes.find((type) => type.id === typeId) || DEFAULT_TYPES[0];
+  return state.cardTypes.find((type) => type.id === typeId);
 }
 
 function getTemplateForType(typeId) {
@@ -208,6 +280,8 @@ function clearCopiedCards() {
 
 function render() {
   renderTypeControls();
+  renderTypeEditorSelect();
+  renderTypeEditor();
   renderTemplateTypeSelect();
   renderTemplateEditor();
   renderList();
@@ -226,7 +300,7 @@ function renderTypeSelect() {
   state.cardTypes.forEach((type) => {
     const option = document.createElement("option");
     option.value = type.id;
-    option.textContent = `${type.name}${type.allowDuplicate ? "（允许重复）" : ""}`;
+    option.textContent = `${type.name}${type.allowDuplicate ? `（重复 x${type.duplicateCount}）` : ""}`;
     cardTypeSelect.appendChild(option);
   });
 
@@ -251,6 +325,33 @@ function renderTypeTabs() {
 
     typeTabs.appendChild(tab);
   });
+}
+
+function renderTypeEditorSelect() {
+  const currentType = manageTypeSelect.value;
+  manageTypeSelect.innerHTML = "";
+
+  state.cardTypes.forEach((type) => {
+    const option = document.createElement("option");
+    option.value = type.id;
+    option.textContent = type.name;
+    manageTypeSelect.appendChild(option);
+  });
+
+  if (state.cardTypes.some((type) => type.id === currentType)) {
+    manageTypeSelect.value = currentType;
+  } else {
+    manageTypeSelect.value = state.activeType;
+  }
+}
+
+function renderTypeEditor() {
+  const typeMeta = getTypeMeta(manageTypeSelect.value || state.activeType);
+  if (!typeMeta) return;
+
+  manageAllowDuplicateInput.checked = typeMeta.allowDuplicate;
+  manageDuplicateCountInput.disabled = !typeMeta.allowDuplicate;
+  manageDuplicateCountInput.value = String(typeMeta.duplicateCount || 1);
 }
 
 function renderTemplateTypeSelect() {
@@ -396,11 +497,15 @@ function sanitizePayload(input) {
       id = `${DEFAULT_TYPES[index]?.id || "type"}-${index + 1}`;
     }
 
+    const allowDuplicate = Boolean(type.allowDuplicate);
+    const duplicateCount = allowDuplicate ? normalizeDuplicateCount(type.duplicateCount) : 1;
+
     usedIds.add(id);
     cardTypes.push({
       id,
       name,
-      allowDuplicate: Boolean(type.allowDuplicate),
+      allowDuplicate,
+      duplicateCount,
     });
   });
 
@@ -458,6 +563,8 @@ function ensureStateConsistency() {
     if (typeof state.templates[type.id] !== "string" || !state.templates[type.id].trim()) {
       state.templates[type.id] = DEFAULT_TEMPLATE;
     }
+
+    type.duplicateCount = type.allowDuplicate ? normalizeDuplicateCount(type.duplicateCount) : 1;
   });
 }
 
